@@ -40,6 +40,13 @@ body{font-family:'Inter','Sarabun',sans-serif;background:var(--black);color:var(
 .reset-btn{background:transparent;color:var(--grey);border:1px solid var(--border);padding:6px 14px;font-size:11px;cursor:pointer;}
 .save-status{font-size:11px;color:var(--pass);margin-left:8px;}
 .save-info{font-family:'Sarabun',sans-serif;font-size:10px;color:#555;margin-left:auto;}
+.export-btn{background:transparent;color:#7eb3ff;border:1px solid #7eb3ff;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;}
+.export-btn:hover{background:#7eb3ff22;}
+.import-btn{background:transparent;color:#a78bfa;border:1px solid #a78bfa;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;}
+.import-btn:hover{background:#a78bfa22;}
+.tester-input{background:#1a1a1a;border:1px solid var(--border);color:#fff;padding:5px 10px;font-size:11px;width:140px;font-family:'Inter',sans-serif;}
+.tester-input::placeholder{color:#555;}
+.sep{color:#333;font-size:16px;}
 /* Summary */
 .summary-bar{background:var(--mid);border-bottom:1px solid var(--border);padding:16px 40px;display:flex;gap:32px;align-items:center;flex-wrap:wrap;}
 .sum-item{display:flex;flex-direction:column;gap:1px;}
@@ -173,8 +180,13 @@ tbody td{padding:9px 10px;vertical-align:top;font-size:12px;color:var(--cream);}
   <div class="badge">OPERATION TEAM ONLY · ทีม OPS เท่านั้น</div>
 </div>
 <div class="save-bar">
-  <button class="save-btn" onclick="saveAll()">💾 บันทึกผลทั้งหมด</button>
-  <button class="reset-btn" onclick="resetAll()">🗑 ล้างผลทั้งหมด</button>
+  <input class="tester-input" id="tester-name" placeholder="ชื่อผู้ทดสอบ / Tester name" oninput="saveTesterName(this.value)" title="ใส่ชื่อก่อน Export · Enter name before exporting">
+  <span class="sep">|</span>
+  <button class="save-btn" onclick="saveAll()">💾 บันทึก</button>
+  <button class="export-btn" onclick="exportResults()">📤 Export ผลทดสอบ</button>
+  <button class="import-btn" onclick="document.getElementById('import-file').click()">📥 Import ผลทดสอบ</button>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importResults(event)">
+  <button class="reset-btn" onclick="resetAll()">🗑 ล้าง</button>
   <span class="save-status" id="save-status"></span>
   <div id="live-summary" style="display:flex;gap:14px;margin-left:14px;font-size:11px;">
     <span>✅ Pass: <strong id="cnt-pass">0</strong></span>
@@ -182,7 +194,7 @@ tbody td{padding:9px 10px;vertical-align:top;font-size:12px;color:var(--cream);}
     <span>⚠️ Blocked: <strong id="cnt-blocked">0</strong></span>
     <span style="color:var(--grey);">— : <strong id="cnt-empty">193</strong></span>
   </div>
-  <span class="save-info">ผลถูกบันทึกใน Browser localStorage · โหลดหน้าใหม่ก็ยังอยู่</span>
+  <span class="save-info" id="imported-from" style="margin-left:auto;color:#a78bfa;"></span>
 </div>
 <div class="summary-bar">
   <div class="sum-item total"><div class="num">193</div><div class="label">Total Cases</div><div style="font-family:'Sarabun',sans-serif;font-size:9px;color:#555;">จำนวน case ทั้งหมด</div></div>
@@ -550,17 +562,156 @@ tbody td{padding:9px 10px;vertical-align:top;font-size:12px;color:var(--cream);}
 <script>
 const STORAGE_KEY='captures_test_v4';
 const TOTAL=193;
+
 function getStore(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');}catch(e){return {};}}
 function setStore(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}
-function saveResult(el){const id=el.getAttribute('data-id'),val=el.value,s=getStore();s['r_'+id]=val;setStore(s);styleSelect(el,val);styleRow(id,val);updateSummary();flashStatus();}
-function saveNote(el){const id=el.getAttribute('data-notes'),val=el.value,s=getStore();s['n_'+id]=val;setStore(s);}
-function saveAll(){document.querySelectorAll('.result-select').forEach(el=>{const id=el.getAttribute('data-id'),s=getStore();s['r_'+id]=el.value;setStore(s);});document.querySelectorAll('.notes-line[data-notes]').forEach(el=>{const s=getStore();s['n_'+el.getAttribute('data-notes')]=el.value;setStore(s);});flashStatus('บันทึกแล้ว ✓');updateSummary();}
-function resetAll(){if(!confirm('ล้างผลทดสอบทั้งหมด? (ไม่สามารถย้อนกลับได้)'))return;localStorage.removeItem(STORAGE_KEY);document.querySelectorAll('.result-select').forEach(el=>{el.value='';styleSelect(el,'');styleRow(el.getAttribute('data-id'),'');});document.querySelectorAll('.notes-line[data-notes]').forEach(el=>el.value='');updateSummary();flashStatus('ล้างแล้ว');}
+
+/* tester name */
+function saveTesterName(v){const s=getStore();s['_tester']=v;setStore(s);}
+
+/* auto-save on change */
+function saveResult(el){
+  const id=el.getAttribute('data-id'),val=el.value,s=getStore();
+  s['r_'+id]=val;setStore(s);styleSelect(el,val);styleRow(id,val);updateSummary();flashStatus('บันทึกแล้ว ✓');
+}
+function saveNote(el){
+  const id=el.getAttribute('data-notes'),val=el.value,s=getStore();
+  s['n_'+id]=val;setStore(s);
+}
+
+/* save all */
+function saveAll(){
+  const s=getStore();
+  document.querySelectorAll('.result-select').forEach(el=>{s['r_'+el.getAttribute('data-id')]=el.value;});
+  document.querySelectorAll('.notes-line[data-notes]').forEach(el=>{s['n_'+el.getAttribute('data-notes')]=el.value;});
+  const name=document.getElementById('tester-name').value.trim();
+  if(name)s['_tester']=name;
+  setStore(s);flashStatus('บันทึกแล้ว ✓');updateSummary();
+}
+
+/* reset */
+function resetAll(){
+  if(!confirm('ล้างผลทดสอบทั้งหมด?\n(ไม่สามารถย้อนกลับได้)'))return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('.result-select').forEach(el=>{el.value='';styleSelect(el,'');styleRow(el.getAttribute('data-id'),'');});
+  document.querySelectorAll('.notes-line[data-notes]').forEach(el=>el.value='');
+  document.getElementById('tester-name').value='';
+  document.getElementById('imported-from').textContent='';
+  updateSummary();flashStatus('ล้างแล้ว');
+}
+
+/* EXPORT */
+function exportResults(){
+  saveAll();
+  const s=getStore();
+  const tester=(s['_tester']||document.getElementById('tester-name').value.trim()||'').trim();
+  if(!tester){
+    alert('กรุณาใส่ชื่อผู้ทดสอบก่อน Export\nPlease enter tester name first');
+    document.getElementById('tester-name').focus();return;
+  }
+  let pass=0,fail=0,blocked=0,na=0,empty=0;
+  document.querySelectorAll('.result-select').forEach(el=>{
+    const v=el.value;
+    if(v==='pass')pass++;else if(v==='fail')fail++;
+    else if(v==='blocked')blocked++;else if(v==='na')na++;else empty++;
+  });
+  const payload={
+    meta:{tester,exported_at:new Date().toISOString(),suite_version:'v4',total:TOTAL,
+      summary:{pass,fail,blocked,na,empty,score:Math.round((pass/TOTAL)*100)+'/100'}},
+    results:{},rows:[]
+  };
+  Object.entries(s).forEach(([k,v])=>{if(k.startsWith('r_')||k.startsWith('n_'))payload.results[k]=v;});
+  document.querySelectorAll('.tc-row').forEach(row=>{
+    const id=row.id.replace('row-','');
+    const enName=row.querySelector('.bi-en-name');
+    const sel=row.querySelector('.result-select');
+    const note=row.querySelector('.notes-line');
+    if(sel)payload.rows.push({id,name:enName?enName.textContent.trim():'',result:sel.value||'—',notes:note?note.value:''});
+  });
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dateStr=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  a.href=url;a.download=`captures_v4_${tester.replace(/\s+/g,'_')}_${dateStr}.json`;
+  a.click();URL.revokeObjectURL(url);
+  flashStatus('Export สำเร็จ ✓ — '+a.download);
+}
+
+/* IMPORT */
+function importResults(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const payload=JSON.parse(e.target.result);
+      const data=payload.results||payload;
+      const s=getStore();
+      Object.entries(data).forEach(([k,v])=>{if(k.startsWith('r_')||k.startsWith('n_'))s[k]=v;});
+      const importedTester=payload.meta?.tester||payload._tester||'';
+      if(importedTester)s['_tester']=importedTester;
+      setStore(s);loadAll();
+      const meta=payload.meta||{};
+      const lbl=`📥 Viewing: ${meta.tester||'?'} · ${(meta.exported_at||'').slice(0,10)} · Pass:${meta.summary?.pass||0} Fail:${meta.summary?.fail||0} Blocked:${meta.summary?.blocked||0}`;
+      document.getElementById('imported-from').textContent=lbl;
+      flashStatus('Import สำเร็จ ✓ — '+file.name);
+    }catch(err){alert('ไฟล์ไม่ถูกต้อง · Invalid file: '+err.message);}
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+/* style helpers */
 function styleSelect(el,val){el.setAttribute('data-val',val);}
-function styleRow(id,val){const r=document.getElementById('row-'+id);if(!r)return;r.classList.remove('row-pass','row-fail','row-blocked');if(val==='pass')r.classList.add('row-pass');else if(val==='fail')r.classList.add('row-fail');else if(val==='blocked')r.classList.add('row-blocked');}
-function updateSummary(){let pass=0,fail=0,blocked=0,na=0,empty=0;document.querySelectorAll('.result-select').forEach(el=>{const v=el.value;if(v==='pass')pass++;else if(v==='fail')fail++;else if(v==='blocked')blocked++;else if(v==='na')na++;else empty++;});const tested=pass+fail+blocked+na,score=tested>0?Math.round((pass/TOTAL)*100):0;document.getElementById('cnt-pass').textContent=pass;document.getElementById('cnt-fail').textContent=fail;document.getElementById('cnt-blocked').textContent=blocked;document.getElementById('cnt-empty').textContent=empty;document.getElementById('sum-pass').textContent=pass||'—';document.getElementById('sum-fail').textContent=fail||'—';document.getElementById('sum-blocked').textContent=blocked||'—';document.getElementById('sum-score').textContent=tested>0?score+'/100':'—/100';}
-function flashStatus(msg){const el=document.getElementById('save-status');el.textContent=msg||'บันทึกแล้ว ✓';setTimeout(()=>{el.textContent='';},2500);}
-function loadAll(){const s=getStore();document.querySelectorAll('.result-select').forEach(el=>{const id=el.getAttribute('data-id'),val=s['r_'+id]||'';el.value=val;styleSelect(el,val);styleRow(id,val);});document.querySelectorAll('.notes-line[data-notes]').forEach(el=>{el.value=s['n_'+el.getAttribute('data-notes')]||'';});updateSummary();}
+function styleRow(id,val){
+  const r=document.getElementById('row-'+id);if(!r)return;
+  r.classList.remove('row-pass','row-fail','row-blocked');
+  if(val==='pass')r.classList.add('row-pass');
+  else if(val==='fail')r.classList.add('row-fail');
+  else if(val==='blocked')r.classList.add('row-blocked');
+}
+
+/* summary */
+function updateSummary(){
+  let pass=0,fail=0,blocked=0,na=0,empty=0;
+  document.querySelectorAll('.result-select').forEach(el=>{
+    const v=el.value;
+    if(v==='pass')pass++;else if(v==='fail')fail++;
+    else if(v==='blocked')blocked++;else if(v==='na')na++;else empty++;
+  });
+  const tested=pass+fail+blocked+na,score=tested>0?Math.round((pass/TOTAL)*100):0;
+  document.getElementById('cnt-pass').textContent=pass;
+  document.getElementById('cnt-fail').textContent=fail;
+  document.getElementById('cnt-blocked').textContent=blocked;
+  document.getElementById('cnt-empty').textContent=empty;
+  document.getElementById('sum-pass').textContent=pass||'—';
+  document.getElementById('sum-fail').textContent=fail||'—';
+  document.getElementById('sum-blocked').textContent=blocked||'—';
+  document.getElementById('sum-score').textContent=tested>0?score+'/100':'—/100';
+}
+
+/* flash */
+function flashStatus(msg){
+  const el=document.getElementById('save-status');
+  el.textContent=msg||'บันทึกแล้ว ✓';
+  setTimeout(()=>{el.textContent='';},3000);
+}
+
+/* load on open */
+function loadAll(){
+  const s=getStore();
+  document.querySelectorAll('.result-select').forEach(el=>{
+    const id=el.getAttribute('data-id'),val=s['r_'+id]||'';
+    el.value=val;styleSelect(el,val);styleRow(id,val);
+  });
+  document.querySelectorAll('.notes-line[data-notes]').forEach(el=>{
+    el.value=s['n_'+el.getAttribute('data-notes')]||'';
+  });
+  if(s['_tester']){
+    const el=document.getElementById('tester-name');
+    if(el&&!el.value)el.value=s['_tester'];
+  }
+  updateSummary();
+}
 window.addEventListener('DOMContentLoaded',loadAll);
 </script>
 </body>
