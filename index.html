@@ -180,12 +180,11 @@ tbody td{padding:9px 10px;vertical-align:top;font-size:12px;color:var(--cream);}
   <div class="badge">OPERATION TEAM ONLY · ทีม OPS เท่านั้น</div>
 </div>
 <div class="save-bar">
-  <input class="tester-input" id="tester-name" placeholder="ชื่อผู้ทดสอบ / Tester name" oninput="saveTesterName(this.value)" title="ใส่ชื่อก่อน Export · Enter name before exporting">
+  <input class="tester-input" id="tester-name" placeholder="ชื่อผู้ทดสอบ / Tester name" oninput="saveTesterName(this.value)" title="ใส่ชื่อก่อน Save · Enter name before saving">
   <span class="sep">|</span>
-  <button class="save-btn" onclick="saveAll()">💾 บันทึก</button>
-  <button class="export-btn" onclick="exportResults()">📤 Export ผลทดสอบ</button>
-  <button class="import-btn" onclick="document.getElementById('import-file').click()">📥 Import ผลทดสอบ</button>
-  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importResults(event)">
+  <button class="save-btn" onclick="saveOnline()">☁️ Save Online</button>
+  <button class="export-btn" onclick="openDashboard()">📊 Dashboard</button>
+  <button class="import-btn" onclick="loadFromOnline()">📥 Load My Results</button>
   <button class="reset-btn" onclick="resetAll()">🗑 ล้าง</button>
   <span class="save-status" id="save-status"></span>
   <div id="live-summary" style="display:flex;gap:14px;margin-left:14px;font-size:11px;">
@@ -194,7 +193,7 @@ tbody td{padding:9px 10px;vertical-align:top;font-size:12px;color:var(--cream);}
     <span>⚠️ Blocked: <strong id="cnt-blocked">0</strong></span>
     <span style="color:var(--grey);">— : <strong id="cnt-empty">193</strong></span>
   </div>
-  <span class="save-info" id="imported-from" style="margin-left:auto;color:#a78bfa;"></span>
+  <span id="online-status" style="margin-left:auto;font-size:10px;color:#555;">⬤ checking...</span>
 </div>
 <div class="summary-bar">
   <div class="sum-item total"><div class="num">193</div><div class="label">Total Cases</div><div style="font-family:'Sarabun',sans-serif;font-size:9px;color:#555;">จำนวน case ทั้งหมด</div></div>
@@ -560,159 +559,309 @@ tbody td{padding:9px 10px;vertical-align:top;font-size:12px;color:var(--cream);}
 </div>
 
 <script>
-const STORAGE_KEY='captures_test_v4';
-const TOTAL=193;
+const STORAGE_KEY = 'captures_test_v4';
+const TOTAL = 193;
+const API = '/api/results';
 
-function getStore(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');}catch(e){return {};}}
-function setStore(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d));}
+/* ─── localStorage helpers ───────────────────────────────────── */
+function getStore() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) { return {}; } }
+function setStore(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
 
-/* tester name */
-function saveTesterName(v){const s=getStore();s['_tester']=v;setStore(s);}
+/* ─── Tester name ────────────────────────────────────────────── */
+function saveTesterName(v) { const s = getStore(); s['_tester'] = v; setStore(s); }
 
-/* auto-save on change */
-function saveResult(el){
-  const id=el.getAttribute('data-id'),val=el.value,s=getStore();
-  s['r_'+id]=val;setStore(s);styleSelect(el,val);styleRow(id,val);updateSummary();flashStatus('บันทึกแล้ว ✓');
+/* ─── Auto-save to localStorage on every change ─────────────── */
+function saveResult(el) {
+  const id = el.getAttribute('data-id'), val = el.value, s = getStore();
+  s['r_' + id] = val; setStore(s);
+  styleSelect(el, val); styleRow(id, val); updateSummary();
+  setOnlineStatus('unsaved', '● unsaved changes');
 }
-function saveNote(el){
-  const id=el.getAttribute('data-notes'),val=el.value,s=getStore();
-  s['n_'+id]=val;setStore(s);
-}
-
-/* save all */
-function saveAll(){
-  const s=getStore();
-  document.querySelectorAll('.result-select').forEach(el=>{s['r_'+el.getAttribute('data-id')]=el.value;});
-  document.querySelectorAll('.notes-line[data-notes]').forEach(el=>{s['n_'+el.getAttribute('data-notes')]=el.value;});
-  const name=document.getElementById('tester-name').value.trim();
-  if(name)s['_tester']=name;
-  setStore(s);flashStatus('บันทึกแล้ว ✓');updateSummary();
+function saveNote(el) {
+  const id = el.getAttribute('data-notes'), val = el.value, s = getStore();
+  s['n_' + id] = val; setStore(s);
+  setOnlineStatus('unsaved', '● unsaved changes');
 }
 
-/* reset */
-function resetAll(){
-  if(!confirm('ล้างผลทดสอบทั้งหมด?\n(ไม่สามารถย้อนกลับได้)'))return;
-  localStorage.removeItem(STORAGE_KEY);
-  document.querySelectorAll('.result-select').forEach(el=>{el.value='';styleSelect(el,'');styleRow(el.getAttribute('data-id'),'');});
-  document.querySelectorAll('.notes-line[data-notes]').forEach(el=>el.value='');
-  document.getElementById('tester-name').value='';
-  document.getElementById('imported-from').textContent='';
-  updateSummary();flashStatus('ล้างแล้ว');
+/* ─── Collect current state into a payload ───────────────────── */
+function buildPayload(tester) {
+  const s = getStore();
+  let pass = 0, fail = 0, blocked = 0, na = 0, empty = 0;
+  document.querySelectorAll('.result-select').forEach(el => {
+    const v = el.value;
+    if (v === 'pass') pass++;
+    else if (v === 'fail') fail++;
+    else if (v === 'blocked') blocked++;
+    else if (v === 'na') na++;
+    else empty++;
+  });
+  const rows = [];
+  document.querySelectorAll('.tc-row').forEach(row => {
+    const id = row.id.replace('row-', '');
+    const enName = row.querySelector('.bi-en-name');
+    const sel = row.querySelector('.result-select');
+    const note = row.querySelector('.notes-line');
+    if (sel) rows.push({ id, name: enName ? enName.textContent.trim() : '', result: sel.value || '—', notes: note ? note.value : '' });
+  });
+  const results = {};
+  Object.entries(s).forEach(([k, v]) => { if (k.startsWith('r_') || k.startsWith('n_')) results[k] = v; });
+  return {
+    tester,
+    meta: {
+      tester,
+      suite_version: 'v4',
+      total: TOTAL,
+      summary: { pass, fail, blocked, na, empty, score: Math.round((pass / TOTAL) * 100) + '/100' }
+    },
+    results,
+    rows
+  };
 }
 
-/* EXPORT */
-function exportResults(){
-  saveAll();
-  const s=getStore();
-  const tester=(s['_tester']||document.getElementById('tester-name').value.trim()||'').trim();
-  if(!tester){
-    alert('กรุณาใส่ชื่อผู้ทดสอบก่อน Export\nPlease enter tester name first');
-    document.getElementById('tester-name').focus();return;
+/* ─── SAVE ONLINE ────────────────────────────────────────────── */
+async function saveOnline() {
+  // Flush current state to localStorage first
+  const s = getStore();
+  document.querySelectorAll('.result-select').forEach(el => { s['r_' + el.getAttribute('data-id')] = el.value; });
+  document.querySelectorAll('.notes-line[data-notes]').forEach(el => { s['n_' + el.getAttribute('data-notes')] = el.value; });
+  const nameEl = document.getElementById('tester-name');
+  const tester = (nameEl.value.trim() || s['_tester'] || '').trim();
+  if (tester) s['_tester'] = tester;
+  setStore(s);
+
+  if (!tester) {
+    alert('กรุณาใส่ชื่อผู้ทดสอบก่อน Save\nPlease enter your tester name first');
+    nameEl.focus(); return;
   }
-  let pass=0,fail=0,blocked=0,na=0,empty=0;
-  document.querySelectorAll('.result-select').forEach(el=>{
-    const v=el.value;
-    if(v==='pass')pass++;else if(v==='fail')fail++;
-    else if(v==='blocked')blocked++;else if(v==='na')na++;else empty++;
-  });
-  const payload={
-    meta:{tester,exported_at:new Date().toISOString(),suite_version:'v4',total:TOTAL,
-      summary:{pass,fail,blocked,na,empty,score:Math.round((pass/TOTAL)*100)+'/100'}},
-    results:{},rows:[]
-  };
-  Object.entries(s).forEach(([k,v])=>{if(k.startsWith('r_')||k.startsWith('n_'))payload.results[k]=v;});
-  document.querySelectorAll('.tc-row').forEach(row=>{
-    const id=row.id.replace('row-','');
-    const enName=row.querySelector('.bi-en-name');
-    const sel=row.querySelector('.result-select');
-    const note=row.querySelector('.notes-line');
-    if(sel)payload.rows.push({id,name:enName?enName.textContent.trim():'',result:sel.value||'—',notes:note?note.value:''});
-  });
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  const dateStr=new Date().toISOString().slice(0,10).replace(/-/g,'');
-  a.href=url;a.download=`captures_v4_${tester.replace(/\s+/g,'_')}_${dateStr}.json`;
-  a.click();URL.revokeObjectURL(url);
-  flashStatus('Export สำเร็จ ✓ — '+a.download);
+
+  setOnlineStatus('saving', '↑ saving...');
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPayload(tester))
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    setOnlineStatus('saved', `☁ saved · ${new Date().toLocaleTimeString()}`);
+    flashStatus('☁️ Saved online ✓');
+    updateSummary();
+  } catch (err) {
+    setOnlineStatus('error', '✕ save failed');
+    flashStatus('Save failed: ' + err.message, true);
+    console.error('saveOnline:', err);
+  }
 }
 
-/* IMPORT */
-function importResults(event){
-  const file=event.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      const payload=JSON.parse(e.target.result);
-      const data=payload.results||payload;
-      const s=getStore();
-      Object.entries(data).forEach(([k,v])=>{if(k.startsWith('r_')||k.startsWith('n_'))s[k]=v;});
-      const importedTester=payload.meta?.tester||payload._tester||'';
-      if(importedTester)s['_tester']=importedTester;
-      setStore(s);loadAll();
-      const meta=payload.meta||{};
-      const lbl=`📥 Viewing: ${meta.tester||'?'} · ${(meta.exported_at||'').slice(0,10)} · Pass:${meta.summary?.pass||0} Fail:${meta.summary?.fail||0} Blocked:${meta.summary?.blocked||0}`;
-      document.getElementById('imported-from').textContent=lbl;
-      flashStatus('Import สำเร็จ ✓ — '+file.name);
-    }catch(err){alert('ไฟล์ไม่ถูกต้อง · Invalid file: '+err.message);}
-    event.target.value='';
-  };
-  reader.readAsText(file);
+/* ─── LOAD FROM ONLINE ───────────────────────────────────────── */
+async function loadFromOnline() {
+  const nameEl = document.getElementById('tester-name');
+  const s = getStore();
+  const tester = (nameEl.value.trim() || s['_tester'] || '').trim();
+  if (!tester) {
+    alert('กรุณาใส่ชื่อผู้ทดสอบก่อน Load\nPlease enter your tester name first');
+    nameEl.focus(); return;
+  }
+  setOnlineStatus('saving', '↓ loading...');
+  try {
+    const res = await fetch(`${API}?tester=${encodeURIComponent(tester)}`);
+    if (res.status === 404) {
+      setOnlineStatus('error', '✕ no saved results found for this name');
+      flashStatus('No results found for: ' + tester, true);
+      return;
+    }
+    if (!res.ok) throw new Error(res.statusText);
+    const payload = await res.json();
+    // Merge into localStorage
+    const store = getStore();
+    Object.entries(payload.results || {}).forEach(([k, v]) => { store[k] = v; });
+    store['_tester'] = payload.tester;
+    setStore(store);
+    loadAll();
+    const m = payload.meta?.summary || {};
+    setOnlineStatus('saved', `☁ loaded · ${(payload.saved_at || '').slice(0, 16).replace('T', ' ')}`);
+    flashStatus(`☁️ Loaded: ${payload.tester} · Pass:${m.pass||0} Fail:${m.fail||0} Blocked:${m.blocked||0}`);
+  } catch (err) {
+    setOnlineStatus('error', '✕ load failed');
+    flashStatus('Load failed: ' + err.message, true);
+    console.error('loadFromOnline:', err);
+  }
 }
 
-/* style helpers */
-function styleSelect(el,val){el.setAttribute('data-val',val);}
-function styleRow(id,val){
-  const r=document.getElementById('row-'+id);if(!r)return;
-  r.classList.remove('row-pass','row-fail','row-blocked');
-  if(val==='pass')r.classList.add('row-pass');
-  else if(val==='fail')r.classList.add('row-fail');
-  else if(val==='blocked')r.classList.add('row-blocked');
+/* ─── DASHBOARD ──────────────────────────────────────────────── */
+async function openDashboard() {
+  setOnlineStatus('saving', '↓ fetching...');
+  try {
+    const res = await fetch(API);
+    if (!res.ok) throw new Error(res.statusText);
+    const { testers } = await res.json();
+    setOnlineStatus('saved', `☁ connected`);
+    showDashboardModal(testers || []);
+  } catch (err) {
+    setOnlineStatus('error', '✕ fetch failed');
+    flashStatus('Dashboard error: ' + err.message, true);
+  }
 }
 
-/* summary */
-function updateSummary(){
-  let pass=0,fail=0,blocked=0,na=0,empty=0;
-  document.querySelectorAll('.result-select').forEach(el=>{
-    const v=el.value;
-    if(v==='pass')pass++;else if(v==='fail')fail++;
-    else if(v==='blocked')blocked++;else if(v==='na')na++;else empty++;
+function showDashboardModal(testers) {
+  const existing = document.getElementById('dash-modal');
+  if (existing) existing.remove();
+
+  const rows = testers.length === 0
+    ? '<tr><td colspan="6" style="text-align:center;color:#555;padding:20px;">No results saved yet</td></tr>'
+    : testers.map(t => {
+        const m = t.summary || {};
+        const score = m.pass != null ? Math.round((m.pass / TOTAL) * 100) : '—';
+        const scoreColor = score >= 90 ? '#9cf57a' : score >= 70 ? '#fbbf24' : score >= 50 ? '#f97316' : '#f87171';
+        const date = (t.saved_at || '').slice(0, 16).replace('T', ' ');
+        return `<tr style="border-bottom:1px solid #222;cursor:pointer;" onclick="loadTesterFromDash('${t.tester}')">
+          <td style="padding:10px 12px;font-weight:600;">${t.tester}</td>
+          <td style="padding:10px 12px;color:#555;font-size:11px;">${date}</td>
+          <td style="padding:10px 12px;color:#9cf57a;">${m.pass || 0}</td>
+          <td style="padding:10px 12px;color:#f87171;">${m.fail || 0}</td>
+          <td style="padding:10px 12px;color:#fbbf24;">${m.blocked || 0}</td>
+          <td style="padding:10px 12px;color:${scoreColor};font-weight:700;">${score}/100</td>
+        </tr>`;
+      }).join('');
+
+  const modal = document.createElement('div');
+  modal.id = 'dash-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:#000000cc;z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#111;border:1px solid #333;width:min(820px,95vw);max-height:80vh;overflow:auto;font-family:Inter,sans-serif;">
+      <div style="background:#1a1a1a;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333;position:sticky;top:0;">
+        <div>
+          <div style="font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">📊 Team Results Dashboard</div>
+          <div style="font-family:'Sarabun',sans-serif;font-size:11px;color:#555;margin-top:2px;">คลิกชื่อเพื่อโหลดผลของแต่ละคน · Click a row to load that tester's results</div>
+        </div>
+        <button onclick="document.getElementById('dash-modal').remove()" style="background:transparent;border:1px solid #444;color:#aaa;padding:6px 14px;cursor:pointer;font-size:12px;">✕ Close</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="background:#1a1a1a;border-bottom:1px solid #333;">
+            <th style="padding:10px 12px;text-align:left;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Tester</th>
+            <th style="padding:10px 12px;text-align:left;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Last Saved</th>
+            <th style="padding:10px 12px;text-align:left;color:#9cf57a;font-weight:600;">✅ Pass</th>
+            <th style="padding:10px 12px;text-align:left;color:#f87171;font-weight:600;">❌ Fail</th>
+            <th style="padding:10px 12px;text-align:left;color:#fbbf24;font-weight:600;">⚠ Blocked</th>
+            <th style="padding:10px 12px;text-align:left;color:#aaa;font-weight:600;">Score</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="padding:16px 24px;border-top:1px solid #222;background:#0d0d0d;">
+        <div style="font-size:10px;color:#444;">Total testers: ${testers.length} · Suite v4 · ${TOTAL} cases · All data stored in Vercel KV</div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function loadTesterFromDash(name) {
+  document.getElementById('tester-name').value = name;
+  document.getElementById('dash-modal').remove();
+  await loadFromOnline();
+}
+
+/* ─── RESET ──────────────────────────────────────────────────── */
+function resetAll() {
+  if (!confirm('ล้างผลทดสอบทั้งหมด?\n(ไม่สามารถย้อนกลับได้ — Online data ยังอยู่)')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('.result-select').forEach(el => { el.value = ''; styleSelect(el, ''); styleRow(el.getAttribute('data-id'), ''); });
+  document.querySelectorAll('.notes-line[data-notes]').forEach(el => el.value = '');
+  document.getElementById('tester-name').value = '';
+  updateSummary();
+  flashStatus('ล้างแล้ว (local only — online data preserved)');
+  setOnlineStatus('idle', '⬤ cleared');
+}
+
+/* ─── Style helpers ──────────────────────────────────────────── */
+function styleSelect(el, val) { el.setAttribute('data-val', val); }
+function styleRow(id, val) {
+  const r = document.getElementById('row-' + id); if (!r) return;
+  r.classList.remove('row-pass', 'row-fail', 'row-blocked');
+  if (val === 'pass') r.classList.add('row-pass');
+  else if (val === 'fail') r.classList.add('row-fail');
+  else if (val === 'blocked') r.classList.add('row-blocked');
+}
+
+/* ─── Summary counter ────────────────────────────────────────── */
+function updateSummary() {
+  let pass = 0, fail = 0, blocked = 0, na = 0, empty = 0;
+  document.querySelectorAll('.result-select').forEach(el => {
+    const v = el.value;
+    if (v === 'pass') pass++;
+    else if (v === 'fail') fail++;
+    else if (v === 'blocked') blocked++;
+    else if (v === 'na') na++;
+    else empty++;
   });
-  const tested=pass+fail+blocked+na,score=tested>0?Math.round((pass/TOTAL)*100):0;
-  document.getElementById('cnt-pass').textContent=pass;
-  document.getElementById('cnt-fail').textContent=fail;
-  document.getElementById('cnt-blocked').textContent=blocked;
-  document.getElementById('cnt-empty').textContent=empty;
-  document.getElementById('sum-pass').textContent=pass||'—';
-  document.getElementById('sum-fail').textContent=fail||'—';
-  document.getElementById('sum-blocked').textContent=blocked||'—';
-  document.getElementById('sum-score').textContent=tested>0?score+'/100':'—/100';
+  const tested = pass + fail + blocked + na, score = tested > 0 ? Math.round((pass / TOTAL) * 100) : 0;
+  document.getElementById('cnt-pass').textContent = pass;
+  document.getElementById('cnt-fail').textContent = fail;
+  document.getElementById('cnt-blocked').textContent = blocked;
+  document.getElementById('cnt-empty').textContent = empty;
+  document.getElementById('sum-pass').textContent = pass || '—';
+  document.getElementById('sum-fail').textContent = fail || '—';
+  document.getElementById('sum-blocked').textContent = blocked || '—';
+  document.getElementById('sum-score').textContent = tested > 0 ? score + '/100' : '—/100';
 }
 
-/* flash */
-function flashStatus(msg){
-  const el=document.getElementById('save-status');
-  el.textContent=msg||'บันทึกแล้ว ✓';
-  setTimeout(()=>{el.textContent='';},3000);
+/* ─── Online status indicator ────────────────────────────────── */
+function setOnlineStatus(state, msg) {
+  const el = document.getElementById('online-status');
+  if (!el) return;
+  const colors = { saved: '#9cf57a', saving: '#fbbf24', error: '#f87171', unsaved: '#f97316', idle: '#555' };
+  el.textContent = msg;
+  el.style.color = colors[state] || '#555';
 }
 
-/* load on open */
-function loadAll(){
-  const s=getStore();
-  document.querySelectorAll('.result-select').forEach(el=>{
-    const id=el.getAttribute('data-id'),val=s['r_'+id]||'';
-    el.value=val;styleSelect(el,val);styleRow(id,val);
+/* ─── Flash status bar ───────────────────────────────────────── */
+function flashStatus(msg, isError = false) {
+  const el = document.getElementById('save-status');
+  el.textContent = msg || 'บันทึกแล้ว ✓';
+  el.style.color = isError ? '#f87171' : 'var(--pass)';
+  setTimeout(() => { el.textContent = ''; }, 4000);
+}
+
+/* ─── Load from localStorage on page open ────────────────────── */
+function loadAll() {
+  const s = getStore();
+  document.querySelectorAll('.result-select').forEach(el => {
+    const id = el.getAttribute('data-id'), val = s['r_' + id] || '';
+    el.value = val; styleSelect(el, val); styleRow(id, val);
   });
-  document.querySelectorAll('.notes-line[data-notes]').forEach(el=>{
-    el.value=s['n_'+el.getAttribute('data-notes')]||'';
+  document.querySelectorAll('.notes-line[data-notes]').forEach(el => {
+    el.value = s['n_' + el.getAttribute('data-notes')] || '';
   });
-  if(s['_tester']){
-    const el=document.getElementById('tester-name');
-    if(el&&!el.value)el.value=s['_tester'];
+  if (s['_tester']) {
+    const el = document.getElementById('tester-name');
+    if (el && !el.value) el.value = s['_tester'];
   }
   updateSummary();
 }
-window.addEventListener('DOMContentLoaded',loadAll);
+
+/* ─── Check API connectivity on load ────────────────────────── */
+async function checkOnline() {
+  try {
+    const res = await fetch(API, { method: 'GET' });
+    if (res.ok) {
+      const s = getStore();
+      const tester = s['_tester'] || '';
+      setOnlineStatus('saved', tester ? `☁ connected · ${tester}` : '☁ connected');
+    } else {
+      setOnlineStatus('error', '✕ API error');
+    }
+  } catch {
+    setOnlineStatus('idle', '⬤ offline / local only');
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadAll();
+  checkOnline();
+});
 </script>
+
 </body>
 </html>
