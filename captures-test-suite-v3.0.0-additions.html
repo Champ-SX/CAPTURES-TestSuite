@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAP*TURES — Test Suite v3.0.0 Additions</title>
+<style>
+  :root{
+    --ink:#0A0A0A; --cream:#F4F1EC; --grey:#AAAAAA;
+    --lemon:#D7FE3A; --orange:#FF5B3F;
+    --panel:#141414; --panel2:#1c1c1c; --line:#2a2a2a;
+    --p0:#FF5B3F; --p1:#ffb02e; --p2:#D7FE3A; --p3:#7fb3ff;
+    --pass:#4ade80; --fail:#FF5B3F; --block:#ffb02e;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:var(--sans);
+    line-height:1.5;-webkit-font-smoothing:antialiased;padding-bottom:80px}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+
+  /* header */
+  header{border-bottom:1px solid var(--line);padding:36px 0 28px;margin-bottom:8px}
+  .crumb{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--grey)}
+  .crumb b{color:var(--lemon)}
+  h1{font-size:clamp(28px,4vw,46px);font-weight:900;letter-spacing:-.02em;margin:14px 0 6px}
+  h1 em{font-style:italic;color:var(--lemon)}
+  .sub{color:var(--grey);font-size:14px;max-width:760px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;font-family:var(--mono);font-size:11px}
+  .meta span{border:1px solid var(--line);padding:5px 10px;border-radius:4px;color:var(--grey);
+    text-transform:uppercase;letter-spacing:.08em}
+  .meta span b{color:var(--cream)}
+
+  /* summary chips */
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:24px 0}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .chip .n{font-size:30px;font-weight:900;line-height:1}
+  .chip .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--grey);margin-top:6px}
+  .chip.pass .n{color:var(--pass)} .chip.fail .n{color:var(--fail)}
+  .chip.block .n{color:var(--block)} .chip.lemon .n{color:var(--lemon)}
+
+  .note{background:var(--panel2);border-left:3px solid var(--lemon);padding:14px 18px;
+    border-radius:0 8px 8px 0;font-size:13px;color:var(--grey);margin:18px 0}
+  .note b{color:var(--cream)}
+
+  /* module */
+  .module{margin-top:40px}
+  .mhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--lemon);
+    padding-bottom:12px;margin-bottom:0}
+  .mnum{font-family:var(--mono);font-size:12px;color:var(--lemon);letter-spacing:.1em}
+  .mtitle{font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .mtitle small{display:block;font-weight:400;font-size:12px;color:var(--grey);letter-spacing:0}
+  .mcount{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--grey)}
+  .group{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--orange);margin:26px 0 10px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--grey);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);
+    font-weight:500;vertical-align:bottom}
+  tbody td{padding:14px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:hover{background:var(--panel)}
+  .tcid{font-family:var(--mono);font-size:12px;color:var(--lemon);white-space:nowrap}
+  .tags{display:block;margin-top:4px}
+  .tag{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.05em;
+    background:var(--panel2);color:var(--grey);border:1px solid var(--line);padding:2px 5px;
+    border-radius:3px;margin:2px 2px 0 0}
+  .tag.new{background:var(--lemon);color:var(--ink);border-color:var(--lemon)}
+  .case-th{font-weight:600}
+  .case-en{color:var(--grey);font-size:12px;font-style:italic;margin-top:3px}
+  .steps{color:var(--cream);font-size:12.5px} .steps .en{color:var(--grey);font-style:italic}
+  .exp{font-size:12.5px} .exp .en{color:var(--grey);font-style:italic}
+  ol.steps{margin:0;padding-left:16px} ol.steps li{margin-bottom:6px}
+
+  .sev{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.05em;
+    padding:3px 7px;border-radius:4px;white-space:nowrap}
+  .sev.P0{background:var(--p0);color:#fff} .sev.P1{background:var(--p1);color:var(--ink)}
+  .sev.P2{background:var(--p2);color:var(--ink)} .sev.P3{background:var(--p3);color:var(--ink)}
+
+  select.result{font-family:var(--mono);font-size:12px;background:var(--panel2);color:var(--cream);
+    border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%;cursor:pointer}
+  select.result.r-pass{border-color:var(--pass);color:var(--pass)}
+  select.result.r-fail{border-color:var(--fail);color:var(--fail)}
+  select.result.r-block{border-color:var(--block);color:var(--block)}
+  textarea.notes{width:100%;min-height:46px;background:var(--panel2);color:var(--cream);
+    border:1px solid var(--line);border-radius:6px;padding:7px;font-family:var(--sans);font-size:12px;
+    resize:vertical}
+
+  /* toolbar */
+  .toolbar{position:fixed;bottom:0;left:0;right:0;background:rgba(10,10,10,.94);
+    border-top:1px solid var(--line);padding:12px 24px;backdrop-filter:blur(8px);z-index:50}
+  .toolbar .wrap{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .toolbar .status{font-family:var(--mono);font-size:11px;color:var(--grey);margin-right:auto}
+  .toolbar .status b{color:var(--lemon)}
+  button{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+    background:var(--panel2);color:var(--cream);border:1px solid var(--line);border-radius:6px;
+    padding:9px 14px;cursor:pointer;transition:opacity .15s}
+  button:hover{opacity:.75}
+  button.primary{background:var(--lemon);color:var(--ink);border-color:var(--lemon);font-weight:700}
+
+  col.c-id{width:9%} col.c-case{width:24%} col.c-steps{width:21%} col.c-exp{width:21%}
+  col.c-sev{width:5%} col.c-res{width:9%} col.c-notes{width:11%}
+  @media(max-width:900px){
+    table,thead,tbody,th,td,tr{display:block}
+    thead{display:none}
+    tbody tr{border:1px solid var(--line);border-radius:8px;margin-bottom:14px;padding:6px 10px}
+    tbody td{border:none;padding:7px 0}
+    tbody td::before{content:attr(data-l);font-family:var(--mono);font-size:9px;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--grey);display:block;margin-bottom:3px}
+  }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="crumb">SIXSHEET COMPANY · <b>CAP*TURES</b> · OPERATION TEAM ONLY</div>
+  <h1>Test Suite — v3.0.0 <em>Coverage Additions</em></h1>
+  <p class="sub">ชุดทดสอบเสริมสำหรับฟีเจอร์ v3.0.0 ที่ยังไม่มี test case ในชุดหลัก 193 cases · ทุกเคสอ้างอิงตรงจาก Feature Backlog (Google Sheet) · TH/EN · บันทึกผลอัตโนมัติในเครื่อง (localStorage)</p>
+  <div class="meta">
+    <span>SCOPE: <b>v3.0.0 / 3.0.0-c gaps</b></span>
+    <span>NEW CASES: <b>14</b></span>
+    <span>MODULES: <b>16 (new)</b></span>
+    <span>SOURCE: <b>Feature Backlog Sheet</b></span>
+    <span>PERIOD: <b>____ → ____</b></span>
+    <span>QA LEAD: <b>____________</b></span>
+  </div>
+</div></header>
+
+<div class="wrap">
+
+  <div class="summary">
+    <div class="chip lemon"><div class="n">14</div><div class="l">New Cases · เคสใหม่</div></div>
+    <div class="chip pass"><div class="n" id="s-pass">0</div><div class="l">Pass · ผ่าน</div></div>
+    <div class="chip fail"><div class="n" id="s-fail">0</div><div class="l">Fail · ไม่ผ่าน</div></div>
+    <div class="chip block"><div class="n" id="s-block">0</div><div class="l">Blocked</div></div>
+    <div class="chip"><div class="n" id="s-nt">14</div><div class="l">Not Tested · ยังไม่เทส</div></div>
+  </div>
+
+  <div class="note">
+    <b>หมายเหตุ:</b> เคสในชุดนี้คือฟีเจอร์ v3.0.0 ที่ <b>ยังไม่ถูกครอบคลุม</b> ในชุดหลัก (Module 01–15)
+    เช่น การรวม icon, Global camera rotation, ย้ายหน้า settings, event search/export, Multi-Cam tier-gating
+    และ coupon migration · ID ใช้ prefix ตามโมดูลเจ้าของ (TC-C / TC-P / TC-EF) และเพิ่มกลุ่มใหม่ TC-UI / TC-SET / TC-PAY
+    เริ่มที่เลข 101 เพื่อไม่ชนกับเคสเดิม
+  </div>
+
+  <div class="module">
+    <div class="mhead">
+      <span class="mnum">MODULE 16</span>
+      <span class="mtitle">v3.0.0 ADDITIONS — COVERAGE GAPS<small>เคสเสริมสำหรับฟีเจอร์ 3.0.0 ที่ยังไม่มีใน suite หลัก</small></span>
+      <span class="mcount">14 cases</span>
+    </div>
+
+    <div class="group">A — UI / NAVIGATION CONSOLIDATION · การรวม/ย้าย UI</div>
+    <table>
+      <colgroup><col class="c-id"><col class="c-case"><col class="c-steps"><col class="c-exp"><col class="c-sev"><col class="c-res"><col class="c-notes"></colgroup>
+      <thead><tr><th>ID</th><th>Test Case · รายการทดสอบ</th><th>Steps · ขั้นตอน</th><th>Expected Result · ผลที่คาดหวัง</th><th>Sev</th><th>Result · ผล</th><th>Notes · หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-UI-101</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">UI</span></span></td>
+          <td data-l="Test Case"><div class="case-th">รวม icon เป็นอันเดียว — ต้องเปิด Config ก่อนจึงใช้งานได้</div><div class="case-en">Consolidated single icon — requires opening Config first</div></td>
+          <td data-l="Steps"><ol class="steps"><li>เปิดแอป ดูแถบเครื่องมือ <span class="en">Open app, inspect toolbar</span></li><li>กด icon รวม <span class="en">Click the consolidated icon</span></li><li>เปิด Config แล้วลองใช้อีกครั้ง <span class="en">Open Config, retry</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">เหลือ icon เดียวแทนชุดเดิม · เมนู/ฟังก์ชันเข้าถึงได้หลังเปิด Config · ไม่มี icon ซ้ำซ้อน<div class="en">Single icon replaces the old set. Functions reachable after Config opens. No duplicate icons.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-UI-102</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">UI</span></span></td>
+          <td data-l="Test Case"><div class="case-th">ย้าย Video Result + Sticker Page ไปอยู่ใน Event / Frame / Media</div><div class="case-en">Video Result & Sticker page relocated into Event/Frame/Media</div></td>
+          <td data-l="Steps"><ol class="steps"><li>เปิด Event → Frame → Media <span class="en">Open Event → Frame → Media</span></li><li>หา Video Result และ Sticker settings <span class="en">Locate Video Result & Sticker settings</span></li><li>ตรวจว่าหน้าเดิมถูกย้ายออก <span class="en">Confirm old standalone pages removed</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">ตั้งค่า Video Result และ Sticker อยู่ใน Media ของ Frame · ไม่มีหน้าเดิมแยกซ้ำ · ค่าเดิมยังคงอยู่<div class="en">Both settings live under Frame's Media tab. No duplicate legacy pages. Existing values preserved.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-UI-103</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">UI</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Event Page ย้ายไปเป็น setting ภายในหน้า EVENT</div><div class="case-en">Event Page moved to be a setting inside the EVENT screen</div></td>
+          <td data-l="Steps"><ol class="steps"><li>เปิดหน้า EVENT <span class="en">Open EVENT screen</span></li><li>หา setting ของ Event Page <span class="en">Find Event Page setting</span></li><li>แก้ค่า แล้ว save <span class="en">Edit value, save</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">Event Page เป็น setting ย่อยในหน้า EVENT · แก้แล้ว save ค่าคงอยู่ · ไม่มี navigation เดิมที่กำพร้า<div class="en">Event Page is a sub-setting of EVENT. Edits save & persist. No orphaned old nav entry.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="group">B — CAMERA · ระบบกล้อง (v3.0.0 gaps)</div>
+    <table>
+      <colgroup><col class="c-id"><col class="c-case"><col class="c-steps"><col class="c-exp"><col class="c-sev"><col class="c-res"><col class="c-notes"></colgroup>
+      <thead><tr><th>ID</th><th>Test Case · รายการทดสอบ</th><th>Steps · ขั้นตอน</th><th>Expected Result · ผลที่คาดหวัง</th><th>Sev</th><th>Result · ผล</th><th>Notes · หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-C-101</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Hardware</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Warning dialog: เปิดโปรแกรมโดยไม่ได้ต่อกล้อง</div><div class="case-en">Warning dialog on launch when no camera connected</div></td>
+          <td data-l="Steps"><ol class="steps"><li>ถอดกล้องทั้งหมด <span class="en">Disconnect all cameras</span></li><li>เปิดแอป <span class="en">Launch app</span></li><li>สังเกต dialog ที่ขึ้น <span class="en">Observe dialog shown</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">แสดง warning 'ไม่พบกล้อง' ชัดเจน อ่านเข้าใจ · ไม่ crash · มีทางไปต่อ/ลองใหม่<div class="en">Clear 'No camera detected' warning. No crash. Provides retry / next step.</div></div></td>
+          <td data-l="Sev"><span class="sev P1">P1</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-C-102</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Hardware</span><span class="tag">Critical Path</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Global Camera Rotation — ปรับครั้งเดียว apply ทุก Frame / ทุกช่อง</div><div class="case-en">Global camera rotation applies to every frame & slot at once</div></td>
+          <td data-l="Steps"><ol class="steps"><li>มี Event ที่มีหลาย Frame หลายช่อง <span class="en">Event with multiple frames & slots</span></li><li>ตั้ง Global Rotation = 90° <span class="en">Set global rotation = 90°</span></li><li>เปิดดูทุก Frame <span class="en">Inspect all frames</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">ทุก Frame/ช่องหมุน 90° พร้อมกันจากการตั้งครั้งเดียว · ไม่ต้องแก้ทีละกล่อง · บันทึกค่าได้<div class="en">All frames/slots rotate 90° from a single setting. No per-slot editing needed. Value persists.</div></div></td>
+          <td data-l="Sev"><span class="sev P1">P1</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-C-103</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">DSLR</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Default Camera Setup อ่านค่าตรงจาก hardware (1200D / 1300D)</div><div class="case-en">Default camera setup reads values directly from hardware</div></td>
+          <td data-l="Steps"><ol class="steps"><li>ต่อ Canon 1200D/1300D <span class="en">Connect Canon 1200D/1300D</span></li><li>เปิดแอป โหลด default setup <span class="en">Open app, load default setup</span></li><li>เทียบค่าที่แสดงกับค่าจริงบนกล้อง <span class="en">Compare shown values vs. on-camera</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">ค่า default อ่านตรงจากกล้อง ตรงกับ hardware · ภาพถ่ายในแสงปกติไม่มืด/ไม่เพี้ยน<div class="en">Defaults read live from hardware & match. Photos in normal light not dark/skewed.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-C-104</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Hardware</span><span class="tag">Negative</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Camera lost connection: popup loop ต้องไม่ติดค้าง — ออก/จัดการได้</div><div class="case-en">Camera lost-connection popup must not trap the user in a loop</div></td>
+          <td data-l="Steps"><ol class="steps"><li>กำลังใช้งานหน้าถ่าย <span class="en">In capture screen</span></li><li>ทำให้กล้อง lost connection <span class="en">Force camera lost connection</span></li><li>ลองปิด popup / ออกจากหน้า <span class="en">Try to dismiss popup / exit page</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">popup แจ้ง lost connection ที่ถูกต้อง (ไม่ใช่ 'หา object ไม่เจอ') · ปิด/ออกจากหน้าได้ ไม่วน loop ค้าง<div class="en">Correct lost-connection popup (not 'object not found'). Dismissable; no infinite loop / stuck screen.</div></div></td>
+          <td data-l="Sev"><span class="sev P1">P1</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="group">C — PRINTER & FRAME · เครื่องพิมพ์และเฟรม</div>
+    <table>
+      <colgroup><col class="c-id"><col class="c-case"><col class="c-steps"><col class="c-exp"><col class="c-sev"><col class="c-res"><col class="c-notes"></colgroup>
+      <thead><tr><th>ID</th><th>Test Case · รายการทดสอบ</th><th>Steps · ขั้นตอน</th><th>Expected Result · ผลที่คาดหวัง</th><th>Sev</th><th>Result · ผล</th><th>Notes · หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-P-101</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Printer</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Margin box แสดงแนวตั้งเมื่อสลับเป็น Portrait</div><div class="case-en">Margin box renders vertically when switched to Portrait</div></td>
+          <td data-l="Steps"><ol class="steps"><li>ไป Printer settings <span class="en">Open Printer settings</span></li><li>สลับ orientation เป็น Portrait <span class="en">Switch orientation to Portrait</span></li><li>ดูกล่อง margin <span class="en">Inspect margin box</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">กล่อง margin ปรับเป็นแนวตั้งตาม Portrait อัตโนมัติ · ค่าถูกต้อง · งานพิมพ์ออกตรง margin<div class="en">Margin box flips to vertical for Portrait automatically. Values correct. Print respects margins.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-EF-101</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Events</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Preview frame พร้อม thumbnail (รูปพรีวิว 1, 2, 3, 4)</div><div class="case-en">Frame preview shows thumbnails 1/2/3/4</div></td>
+          <td data-l="Steps"><ol class="steps"><li>สร้าง/เปิด Frame ที่มีหลายช่อง <span class="en">Open frame with multiple slots</span></li><li>ดูหน้า preview frame <span class="en">View frame preview screen</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">แสดงกรอบพร้อม thumbnail พรีวิวลำดับ 1,2,3,4 ครบ · ตรงกับ shot จริง · โหลดไว<div class="en">Frame shown with preview thumbnails 1–4. Matches actual shots. Loads quickly.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="group">D — EVENT SETUP · จัดการ Event (search / export / import)</div>
+    <table>
+      <colgroup><col class="c-id"><col class="c-case"><col class="c-steps"><col class="c-exp"><col class="c-sev"><col class="c-res"><col class="c-notes"></colgroup>
+      <thead><tr><th>ID</th><th>Test Case · รายการทดสอบ</th><th>Steps · ขั้นตอน</th><th>Expected Result · ผลที่คาดหวัง</th><th>Sev</th><th>Result · ผล</th><th>Notes · หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-SET-101</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Setup</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Event Search — ค้นหา Event จากรายการได้</div><div class="case-en">Event search filters the event list</div></td>
+          <td data-l="Steps"><ol class="steps"><li>มี Event หลายรายการ <span class="en">Have multiple events</span></li><li>พิมพ์คำค้นในช่อง search <span class="en">Type a query in search box</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">รายการกรองตามคำค้นแบบ real-time · ค้นจากชื่อ/วันที่ได้ · ไม่มีรายการผิด<div class="en">List filters in real time by name/date. Correct matches only.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-SET-102</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Setup</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Export ผลการค้นหา Event</div><div class="case-en">Export event search results</div></td>
+          <td data-l="Steps"><ol class="steps"><li>ค้นหา Event ให้ได้ผลลัพธ์ <span class="en">Run an event search</span></li><li>กด Export <span class="en">Click Export</span></li><li>เปิดไฟล์ที่ได้ <span class="en">Open exported file</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">Export เฉพาะผลที่ค้นเจอ · ไฟล์เปิดได้ ข้อมูลครบถูกต้อง · ไม่รวม event ที่ไม่ตรงคำค้น<div class="en">Exports only matched results. File opens, data complete & correct. Excludes non-matches.</div></div></td>
+          <td data-l="Sev"><span class="sev P3">P3</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-SET-103</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Setup</span><span class="tag">Critical Path</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Export / Import Event พร้อม checkbox เลือก Event</div><div class="case-en">Export/Import events with selection checkboxes</div></td>
+          <td data-l="Steps"><ol class="steps"><li>เลือก Event ด้วย checkbox บางรายการ <span class="en">Tick some events via checkbox</span></li><li>Export → ไปอีกเครื่อง → Import <span class="en">Export → other machine → Import</span></li><li>ตรวจ Event ที่นำเข้า <span class="en">Verify imported events</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">Export เฉพาะที่ติ๊ก · Import คืนค่า Event ครบ (frame/media/setting) · ไม่ทับของเดิมผิด · ไม่ corrupt<div class="en">Exports only ticked events. Import restores them fully (frames/media/settings). No wrong overwrite or corruption.</div></div></td>
+          <td data-l="Sev"><span class="sev P1">P1</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="group">E — MONETIZATION · การคิดเงิน (Multi-Cam tier · Coupon migration)</div>
+    <table>
+      <colgroup><col class="c-id"><col class="c-case"><col class="c-steps"><col class="c-exp"><col class="c-sev"><col class="c-res"><col class="c-notes"></colgroup>
+      <thead><tr><th>ID</th><th>Test Case · รายการทดสอบ</th><th>Steps · ขั้นตอน</th><th>Expected Result · ผลที่คาดหวัง</th><th>Sev</th><th>Result · ผล</th><th>Notes · หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-PAY-101</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Payment</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Multi-Cam เป็นฟีเจอร์เสียเงินเพิ่ม (tier-gated)</div><div class="case-en">Multi-Cam is a paid add-on, gated by tier</div></td>
+          <td data-l="Steps"><ol class="steps"><li>ใช้บัญชีที่ไม่มีสิทธิ์ Multi-Cam <span class="en">Account without Multi-Cam entitlement</span></li><li>ลองเปิด Multi-Cam <span class="en">Attempt to enable Multi-Cam</span></li><li>ปลดล็อกด้วยสิทธิ์/จ่ายเงิน แล้วลองอีกครั้ง <span class="en">Unlock via entitlement, retry</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">ถ้าไม่มีสิทธิ์ → ใช้ Multi-Cam ไม่ได้ + แจ้ง upgrade ชัดเจน · เมื่อมีสิทธิ์ → ใช้ได้ปกติ · ไม่ bypass ได้<div class="en">No entitlement → Multi-Cam blocked with clear upgrade prompt. With entitlement → works. No bypass.</div></div></td>
+          <td data-l="Sev"><span class="sev P2">P2</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+        <tr>
+          <td data-l="ID"><span class="tcid">TC-PAY-102</span><span class="tags"><span class="tag new">v3.0.0</span><span class="tag">Payment</span></span></td>
+          <td data-l="Test Case"><div class="case-th">Migrate Coupon จากระบบ SIXSHEET เดิมมาระบบใหม่</div><div class="case-en">Migrate coupons from legacy SIXSHEET system</div></td>
+          <td data-l="Steps"><ol class="steps"><li>มีคูปองในระบบเดิม <span class="en">Coupons exist in legacy system</span></li><li>รัน migration <span class="en">Run migration</span></li><li>ใช้คูปองที่ย้ายมาในบูธ <span class="en">Redeem a migrated coupon in booth</span></li></ol></td>
+          <td data-l="Expected"><div class="exp">คูปองเดิมถูกย้ายครบ · สถานะ (ใช้แล้ว/คงเหลือ) ถูกต้อง · ใช้งานในระบบใหม่ได้ · ไม่ซ้ำ/ไม่หาย<div class="en">All legacy coupons migrated. Status (used/remaining) correct. Redeemable in new system. No dup/loss.</div></div></td>
+          <td data-l="Sev"><span class="sev P3">P3</span></td>
+          <td data-l="Result"><select class="result"><option value="">—</option><option>Pass</option><option>Fail</option><option>Blocked</option><option>N/A</option></select></td>
+          <td data-l="Notes"><textarea class="notes" placeholder="หมายเหตุ..."></textarea></td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div><!--/module-->
+</div><!--/wrap-->
+
+<div class="toolbar"><div class="wrap">
+  <span class="status" id="status">บันทึกอัตโนมัติพร้อม · Auto-save ready</span>
+  <button onclick="exportJSON()">📤 Export ผล</button>
+  <button onclick="document.getElementById('imp').click()">📥 Import ผล</button>
+  <input id="imp" type="file" accept="application/json" style="display:none" onchange="importJSON(event)">
+  <button onclick="clearAll()">🗑 ล้าง</button>
+  <button class="primary" onclick="saveAll()">💾 บันทึก</button>
+</div></div>
+
+<script>
+const KEY='captures-v300-additions';
+function cells(){return [...document.querySelectorAll('tbody tr')].filter(r=>r.querySelector('.tcid'))}
+function idOf(r){return r.querySelector('.tcid').textContent.trim()}
+function load(){
+  let d={};try{d=JSON.parse(localStorage.getItem(KEY))||{}}catch(e){}
+  cells().forEach(r=>{const id=idOf(r),s=r.querySelector('.result'),n=r.querySelector('.notes');
+    if(d[id]){s.value=d[id].r||'';n.value=d[id].n||''}colorize(s)});
+  recount();
+}
+function colorize(s){s.classList.remove('r-pass','r-fail','r-block');
+  if(s.value==='Pass')s.classList.add('r-pass');
+  else if(s.value==='Fail')s.classList.add('r-fail');
+  else if(s.value==='Blocked')s.classList.add('r-block');}
+function snapshot(){const d={};cells().forEach(r=>{d[idOf(r)]={r:r.querySelector('.result').value,n:r.querySelector('.notes').value}});return d}
+function saveAll(){localStorage.setItem(KEY,JSON.stringify(snapshot()));flash('บันทึกแล้ว · Saved')}
+function flash(m){const s=document.getElementById('status');s.innerHTML='<b>'+m+'</b>';setTimeout(()=>s.textContent='บันทึกอัตโนมัติพร้อม · Auto-save ready',1800)}
+function recount(){let p=0,f=0,b=0,nt=0;cells().forEach(r=>{const v=r.querySelector('.result').value;
+  if(v==='Pass')p++;else if(v==='Fail')f++;else if(v==='Blocked')b++;else if(!v)nt++});
+  s_pass.textContent=p;s_fail.textContent=f;s_block.textContent=b;s_nt.textContent=nt;}
+function clearAll(){if(!confirm('ล้างผลทั้งหมด? · Clear all results?'))return;
+  cells().forEach(r=>{r.querySelector('.result').value='';r.querySelector('.notes').value='';colorize(r.querySelector('.result'))});
+  localStorage.removeItem(KEY);recount();flash('ล้างแล้ว · Cleared')}
+function exportJSON(){const blob=new Blob([JSON.stringify({suite:KEY,date:new Date().toISOString(),results:snapshot()},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='captures-v300-results.json';a.click()}
+function importJSON(e){const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{const d=JSON.parse(rd.result),res=d.results||d;
+    cells().forEach(r=>{const id=idOf(r);if(res[id]){r.querySelector('.result').value=res[id].r||'';r.querySelector('.notes').value=res[id].n||'';colorize(r.querySelector('.result'))}});
+    localStorage.setItem(KEY,JSON.stringify(snapshot()));recount();flash('นำเข้าแล้ว · Imported')}catch(err){alert('ไฟล์ไม่ถูกต้อง · Invalid file')}};
+  rd.readAsText(f)}
+document.addEventListener('change',e=>{if(e.target.classList.contains('result')){colorize(e.target);recount();saveAll()}});
+document.addEventListener('input',e=>{if(e.target.classList.contains('notes')){clearTimeout(window._t);window._t=setTimeout(saveAll,600)}});
+load();
+</script>
+</body>
+</html>
